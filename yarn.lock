@@ -16,6 +16,11 @@
   resolved "https://registry.yarnpkg.com/@babel/helper-validator-identifier/-/helper-validator-identifier-7.25.9.tgz#24b64e2c3ec7cd3b3c547729b8d16871f22cbdc7"
   integrity sha512-Ed61U6XJc3CVRfkERJWDz4dJwKe7iLmmJsbOGu9wSloNSFttHV0I8g6UAgb7qnK5ly5bGLPd4oXZlxCdANBOWQ==
 
+"@cmdcode/tapscript@^1.4.6":
+  version "1.4.6"
+  resolved "https://registry.yarnpkg.com/@cmdcode/tapscript/-/tapscript-1.4.6.tgz#f5cc6f71d7151a66d8a777c02e5ce2703c319066"
+  integrity sha512-lrcLBSwX/T4OZjBdIupGeqGtOKC4MMSZUC7FwV6zOlqcAPHVVvtXDKKm4VTKDtszAvtObfLBpizSY69F4NJqQQ==
+
 "@eslint-community/eslint-utils@^4.2.0":
   version "4.4.1"
   resolved "https://registry.yarnpkg.com/@eslint-community/eslint-utils/-/eslint-utils-4.4.1.tgz#d1145bf2c20132d6400495d6df4bf59362fd9d56"

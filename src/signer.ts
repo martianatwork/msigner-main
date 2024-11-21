@@ -14,7 +14,6 @@ import {
 } from './constant';
 import {
   generateTxidFromHash,
-  isP2SHAddress,
   mapUtxos,
   satToBtc,
   toXOnly,
@@ -36,6 +35,7 @@ import {
   WitnessUtxo,
   utxo,
 } from './interfaces';
+import { Address } from '@cmdcode/tapscript';
 
 bitcoin.initEccLib(ecc);
 
@@ -370,18 +370,18 @@ Needed:       ${satToBtc(amount)} BTC`);
       const p2shInputRedeemScript: any = {};
       const p2shInputWitnessUTXO: any = {};
 
-      if (isP2SHAddress(listing.buyer.buyerAddress, network)) {
-        const redeemScript = bitcoin.payments.p2wpkh({
-          pubkey: Buffer.from(listing.buyer.buyerPublicKey!, 'hex'),
-        }).output;
-        const p2sh = bitcoin.payments.p2sh({
-          redeem: { output: redeemScript },
-        });
-        p2shInputWitnessUTXO.witnessUtxo = {
-          script: p2sh.output,
-          value: dummyUtxo.value,
-        } as WitnessUtxo;
-        p2shInputRedeemScript.redeemScript = p2sh.redeem?.output;
+      const buyerAdressType = Address.decode(listing.buyer.buyerAddress);
+      if (buyerAdressType.type !== 'p2pkh') {
+        p2shInputWitnessUTXO.witnessUtxo = dummyUtxo.tx.outs[dummyUtxo.vout] as WitnessUtxo;
+        if(buyerAdressType.type !== 'p2tr') {
+          const redeemScript = bitcoin.payments.p2wpkh({
+            pubkey: Buffer.from(listing.buyer.buyerPublicKey!, 'hex'),
+          }).output;
+          const p2sh = bitcoin.payments.p2sh({
+            redeem: { output: redeemScript },
+          });
+          p2shInputRedeemScript.redeemScript = p2sh.redeem?.output;
+        }
       }
 
       psbt.addInput({
@@ -424,18 +424,18 @@ Needed:       ${satToBtc(amount)} BTC`);
       const p2shInputWitnessUTXOUn: any = {};
       const p2shInputRedeemScriptUn: any = {};
 
-      if (isP2SHAddress(listing.buyer.buyerAddress, network)) {
-        const redeemScript = bitcoin.payments.p2wpkh({
-          pubkey: Buffer.from(listing.buyer.buyerPublicKey!, 'hex'),
-        }).output;
-        const p2sh = bitcoin.payments.p2sh({
-          redeem: { output: redeemScript },
-        });
-        p2shInputWitnessUTXOUn.witnessUtxo = {
-          script: p2sh.output,
-          value: utxo.value,
-        } as WitnessUtxo;
-        p2shInputRedeemScriptUn.redeemScript = p2sh.redeem?.output;
+      const buyerAdressType = Address.decode(listing.buyer.buyerAddress);
+      if (buyerAdressType.type !== 'p2pkh') {
+        p2shInputWitnessUTXOUn.witnessUtxo = utxo.tx.outs[utxo.vout] as WitnessUtxo;
+        if(buyerAdressType.type !== 'p2tr') {
+          const redeemScript = bitcoin.payments.p2wpkh({
+            pubkey: Buffer.from(listing.buyer.buyerPublicKey!, 'hex'),
+          }).output;
+          const p2sh = bitcoin.payments.p2sh({
+            redeem: { output: redeemScript },
+          });
+          p2shInputRedeemScriptUn.redeemScript = p2sh.redeem?.output;
+        }
       }
 
       psbt.addInput({
@@ -695,15 +695,18 @@ Missing:    ${satToBtc(-changeValue)} BTC`;
         nonWitnessUtxo: utxo.tx.toBuffer(),
       };
 
-      if (isP2SHAddress(address, network)) {
-        const redeemScript = bitcoin.payments.p2wpkh({
-          pubkey: Buffer.from(buyerPublicKey!, 'hex'),
-        }).output;
-        const p2sh = bitcoin.payments.p2sh({
-          redeem: { output: redeemScript },
-        });
-        input.witnessUtxo = utxo.tx.outs[utxo.vout];
-        input.redeemScript = p2sh.redeem?.output;
+      const addressType = Address.decode(address);
+      if (addressType.type !== 'p2pkh') {
+        input.witnessUtxo = utxo.tx.outs[utxo.vout] as WitnessUtxo;
+        if(addressType.type !== 'p2tr') {
+          const redeemScript = bitcoin.payments.p2wpkh({
+            pubkey: Buffer.from(buyerPublicKey!, 'hex'),
+          }).output;
+          const p2sh = bitcoin.payments.p2sh({
+            redeem: { output: redeemScript },
+          });
+          input.redeemScript = p2sh.redeem?.output;
+        }
       }
 
       psbt.addInput(input);
