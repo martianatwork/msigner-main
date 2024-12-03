@@ -1,5 +1,6 @@
 import { TxStatus } from '@mempool/mempool.js/lib/interfaces/bitcoin/transactions';
 import * as bitcoin from 'bitcoinjs-lib';
+import { SighashType } from 'bip174/src/lib/interfaces';
 
 export class InvalidArgumentError extends Error {
   constructor(message: string) {
@@ -87,6 +88,11 @@ export interface IOrdAPIPostPSBTListing {
   tapInternalKey?: string;
 }
 
+export interface InputsToSign {
+  address: string;
+  signingIndexes: number[];
+}
+
 export interface IListingState {
   seller: {
     makerFeeBp: number;
@@ -94,17 +100,20 @@ export interface IListingState {
     price: number;
     ordItem: IOrdItem;
     sellerReceiveAddress: string;
+    toSignInputs?: InputsToSign[];
     unsignedListingPSBTBase64?: string;
     signedListingPSBTBase64?: string;
     tapInternalKey?: string;
+    sighashType?: SighashType;
   };
 
   buyer?: {
     takerFeeBp: number;
     buyerAddress: string;
     buyerTokenReceiveAddress: string;
-    feeRateTier: string;
+    feeRateTier: string | number;
     buyerPublicKey?: string;
+    toSignInputs?: InputsToSign[];
     unsignedBuyingPSBTBase64?: string;
     unsignedBuyingPSBTInputSize?: number;
     signedBuyingPSBTBase64?: string;

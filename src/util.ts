@@ -1,7 +1,6 @@
 import { AddressTxsUtxo } from '@mempool/mempool.js/lib/interfaces/bitcoin/addresses';
 import * as bitcoin from 'bitcoinjs-lib';
-import { utxo } from './interfaces';
-import { FullnodeRPC } from './vendors/fullnoderpc';
+import { InputsToSign, utxo } from './interfaces';
 import { getTxHex } from './vendors/mempool';
 
 export const toXOnly = (pubKey: Buffer) =>
@@ -42,4 +41,22 @@ export function isP2SHAddress(
   } catch (error) {
     return false;
   }
+}
+
+/**
+ * Merges or updates buyerSigningInputs based on the address field.
+ * @param {InputsToSign[]} inputs - Array of InputsToSign to merge/update.
+ * @param {InputsToSign} newInput - New input to merge or update.
+ */
+export function mergeOrUpdate(inputs: InputsToSign[], newInput: InputsToSign): InputsToSign[] {
+  const existingInput = inputs.find(input => input.address === newInput.address);
+
+  if (existingInput) {
+    existingInput.signingIndexes = Array.from(
+      new Set([...existingInput.signingIndexes, ...newInput.signingIndexes])
+    );
+  } else {
+    inputs.push(newInput);
+  }
+  return inputs;
 }

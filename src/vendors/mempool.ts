@@ -21,18 +21,25 @@ export async function getMempoolTxIds() {
 }
 
 export async function getTxRaw(txid: string) {
-  return await mempoolBitcoin.transactions.getTxRaw({txid});
+  return await mempoolBitcoin.transactions.getTxRaw({ txid });
 }
 
 export async function getTxHex(txid: string) {
-  return await mempoolBitcoin.transactions.getTxHex({txid});
+  return await mempoolBitcoin.transactions.getTxHex({ txid });
 }
 
 export async function getTx(txid: string) {
-  return await mempoolBitcoin.transactions.getTx({txid});
+  return await mempoolBitcoin.transactions.getTx({ txid });
 }
 
-export async function getFees(feeRateTier: string) {
+export async function postTx(txhex: string) {
+  return await mempoolBitcoin.transactions.postTx({ txhex });
+}
+
+export async function getFees(feeRateTier: string | number): Promise<number> {
+  if (typeof feeRateTier === 'number') {
+    return feeRateTier;
+  }
   const res = await mempoolBitcoin.fees.getFeesRecommended();
   switch (feeRateTier) {
     case 'fastestFee':
@@ -42,6 +49,8 @@ export async function getFees(feeRateTier: string) {
     case 'hourFee':
       return res.hourFee;
     case 'minimumFee':
+      return res.minimumFee;
+    case 'economyFee':
       return res.minimumFee;
     default:
       return res.hourFee;

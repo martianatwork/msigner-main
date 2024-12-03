@@ -17,10 +17,11 @@ import {
   mapUtxos,
   satToBtc,
   toXOnly,
+  mergeOrUpdate,
 } from './util';
 import {
   calculateTxBytesFee,
-  calculateTxBytesFeeWithRate,
+  calculateTxBytesFeeWithRate, calculateTxsFee,
   getSellerOrdOutputValue,
 } from './vendors/feeprovider';
 import { FullnodeRPC } from './vendors/fullnoderpc';
@@ -34,6 +35,7 @@ import {
   ItemProvider,
   WitnessUtxo,
   utxo,
+  InputsToSign,
 } from './interfaces';
 import { Address } from '@cmdcode/tapscript';
 
@@ -49,6 +51,8 @@ export namespace SellerSigner {
     listing: IListingState,
   ): Promise<IListingState> {
     const psbt = new bitcoin.Psbt({ network });
+    let currentSigningIndex = 0;
+    let currentSigningInputs: InputsToSign[] = []
     const [ordinalUtxoTxId, ordinalUtxoVout] =
       listing.seller.ordItem.output.split(':');
 
@@ -74,8 +78,7 @@ export namespace SellerSigner {
       // No problem in always adding a witnessUtxo here
       witnessUtxo: tx.outs[parseInt(ordinalUtxoVout)],
       sighashType:
-        bitcoin.Transaction.SIGHASH_SINGLE |
-        bitcoin.Transaction.SIGHASH_ANYONECANPAY,
+        listing.seller?.sighashType || (bitcoin.Transaction.SIGHASH_SINGLE | bitcoin.Transaction.SIGHASH_ANYONECANPAY),
     };
     // If taproot is used, we need to add the internal key
     if (listing.seller.tapInternalKey) {
@@ -85,7 +88,10 @@ export namespace SellerSigner {
     }
 
     psbt.addInput(input);
-
+    currentSigningInputs = mergeOrUpdate(currentSigningInputs, {
+      address: listing.seller.sellerOrdAddress,
+      signingIndexes: [currentSigningIndex++]
+    })
     const sellerOutput = getSellerOrdOutputValue(
       listing.seller.price,
       listing.seller.makerFeeBp,
@@ -98,6 +104,7 @@ export namespace SellerSigner {
     });
 
     listing.seller.unsignedListingPSBTBase64 = psbt.toBase64();
+    listing.seller.toSignInputs = currentSigningInputs;
     return listing;
   }
 
@@ -342,6 +349,8 @@ Needed:       ${satToBtc(amount)} BTC`);
     listing: IListingState,
   ) {
     const psbt = new bitcoin.Psbt({ network });
+    let currentSigningIndex = 0;
+    let currentSigningInputs: InputsToSign[] = []
     if (
       !listing.buyer ||
       !listing.buyer.buyerAddress ||
@@ -358,22 +367,21 @@ Needed:       ${satToBtc(amount)} BTC`);
     }
 
     let totalInput = 0;
+    const buyerAdressType = Address.decode(listing.buyer.buyerAddress);
 
     // Add two dummyUtxos
     for (const dummyUtxo of listing.buyer.buyerDummyUTXOs) {
       const input: any = {
         hash: dummyUtxo.txid,
         index: dummyUtxo.vout,
-        nonWitnessUtxo: dummyUtxo.tx.toBuffer(),
       };
 
       const p2shInputRedeemScript: any = {};
       const p2shInputWitnessUTXO: any = {};
 
-      const buyerAdressType = Address.decode(listing.buyer.buyerAddress);
       if (buyerAdressType.type !== 'p2pkh') {
         p2shInputWitnessUTXO.witnessUtxo = dummyUtxo.tx.outs[dummyUtxo.vout] as WitnessUtxo;
-        if(buyerAdressType.type !== 'p2tr') {
+        if(buyerAdressType.type === 'p2sh') {
           const redeemScript = bitcoin.payments.p2wpkh({
             pubkey: Buffer.from(listing.buyer.buyerPublicKey!, 'hex'),
           }).output;
@@ -382,6 +390,8 @@ Needed:       ${satToBtc(amount)} BTC`);
           });
           p2shInputRedeemScript.redeemScript = p2sh.redeem?.output;
         }
+      } else {
+        input.nonWitnessUtxo = dummyUtxo.tx.toBuffer();
       }
 
       psbt.addInput({
@@ -389,6 +399,10 @@ Needed:       ${satToBtc(amount)} BTC`);
         ...p2shInputWitnessUTXO,
         ...p2shInputRedeemScript,
       });
+      currentSigningInputs = mergeOrUpdate(currentSigningInputs, {
+        address: listing.buyer.buyerAddress,
+        signingIndexes: [currentSigningIndex++]
+      })
       totalInput += dummyUtxo.value;
     }
 
@@ -403,7 +417,7 @@ Needed:       ${satToBtc(amount)} BTC`);
     // Add ordinal output
     psbt.addOutput({
       address: listing.buyer.buyerTokenReceiveAddress,
-      value: ORDINALS_POSTAGE_VALUE,
+      value: listing.seller.ordItem.outputValue ?? ORDINALS_POSTAGE_VALUE,
     });
 
     const { sellerInput, sellerOutput } = await getSellerInputAndOutput(
@@ -426,8 +440,9 @@ Needed:       ${satToBtc(amount)} BTC`);
 
       const buyerAdressType = Address.decode(listing.buyer.buyerAddress);
       if (buyerAdressType.type !== 'p2pkh') {
+        delete p2shInputWitnessUTXOUn.nonWitnessUtxo;
         p2shInputWitnessUTXOUn.witnessUtxo = utxo.tx.outs[utxo.vout] as WitnessUtxo;
-        if(buyerAdressType.type !== 'p2tr') {
+        if(buyerAdressType.type === 'p2sh') {
           const redeemScript = bitcoin.payments.p2wpkh({
             pubkey: Buffer.from(listing.buyer.buyerPublicKey!, 'hex'),
           }).output;
@@ -443,7 +458,10 @@ Needed:       ${satToBtc(amount)} BTC`);
         ...p2shInputWitnessUTXOUn,
         ...p2shInputRedeemScriptUn,
       });
-
+      currentSigningInputs = mergeOrUpdate(currentSigningInputs, {
+        address: listing.buyer.buyerAddress,
+        signingIndexes: [currentSigningIndex++]
+      })
       totalInput += utxo.value;
     }
 
@@ -473,11 +491,23 @@ Needed:       ${satToBtc(amount)} BTC`);
       value: DUMMY_UTXO_VALUE,
     });
 
-    const fee = await calculateTxBytesFee(
-      psbt.txInputs.length,
-      psbt.txOutputs.length, // already taken care of the exchange output bytes calculation
+    // const fee = await calculateTxBytesFee(
+    //   psbt.txInputs.length,
+    //   psbt.txOutputs.length, // already taken care of the exchange output bytes calculation
+    //   listing.buyer.feeRateTier,
+    // );
+    let  fee = await calculateTxsFee(
+      {
+        type: buyerAdressType.type === 'raw' ? 'p2pkh' :
+          buyerAdressType.type === 'p2w-sh' ? 'p2shP2wsh' :
+            buyerAdressType.type === 'p2w-pkh' ? 'p2shP2pk' :
+              buyerAdressType.type,
+        times: psbt.inputCount - 1
+      },
+      psbt.txOutputs, // already taken care of the exchange output bytes calculation
       listing.buyer.feeRateTier,
     );
+
 
     const totalOutput = psbt.txOutputs.reduce(
       (partialSum, a) => partialSum + a.value,
@@ -501,6 +531,7 @@ Missing:    ${satToBtc(-changeValue)} BTC`;
     }
 
     listing.buyer.unsignedBuyingPSBTBase64 = psbt.toBase64();
+    listing.buyer.toSignInputs = currentSigningInputs;
     listing.buyer.unsignedBuyingPSBTInputSize = psbt.data.inputs.length;
     return listing;
   }
@@ -697,8 +728,9 @@ Missing:    ${satToBtc(-changeValue)} BTC`;
 
       const addressType = Address.decode(address);
       if (addressType.type !== 'p2pkh') {
+        delete input.nonWitnessUtxo;
         input.witnessUtxo = utxo.tx.outs[utxo.vout] as WitnessUtxo;
-        if(addressType.type !== 'p2tr') {
+        if(addressType.type === 'p2sh') {
           const redeemScript = bitcoin.payments.p2wpkh({
             pubkey: Buffer.from(buyerPublicKey!, 'hex'),
           }).output;
