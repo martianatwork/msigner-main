@@ -1,6 +1,6 @@
 {
   "name": "@martianatwork/osigner",
-  "version": "1.0.22",
+  "version": "1.0.23",
   "license": "Apache-2.0",
   "description": "msigner is an open source Bitcoin Ordinals Partially Signed Bitcoin Transactions (PSBT) signer library, to support atomic swap with a lot of features. It provides a simple and secure way to structure Bitcoin transactions for marketplaces.",
   "main": "dist/src/index.js",
@@ -32,6 +32,8 @@
     "@types/expect": "^24",
     "@types/mocha": "^10.0.1",
     "@types/node": "^18",
+    "@typescript-eslint/eslint-plugin": "^8.17.0",
+    "@typescript-eslint/parser": "^8.17.0",
     "chai": "^4.3.7",
     "eslint": "^8.1.0",
     "eslint-config-prettier": "^8.1.0",
